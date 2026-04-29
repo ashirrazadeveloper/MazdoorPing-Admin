@@ -1,230 +1,364 @@
-'use client'
+"use client";
 
-import React, { useState } from 'react'
+import React, { useState } from "react";
+import { Header } from "@/components/layout/Header";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
 import {
-  Grid3X3, Users, TrendingUp, Edit3, Save, X, BarChart3,
-} from 'lucide-react'
-import Header from '@/components/layout/Header'
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import { cn } from '@/lib/utils'
-import { supabase } from '@/lib/supabase'
-import type { Category } from '@/types'
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { cn, formatCurrency } from "@/lib/utils";
+import { mockCategories } from "@/lib/mock-data";
+import type { Category } from "@/types";
+import {
+  Plus,
+  Pencil,
+  Trash2,
+  Search,
+  CheckCircle2,
+  XCircle,
+  Users,
+} from "lucide-react";
 
-const sampleCategories: Category[] = [
-  { id: 'c1', name: 'Painter', name_urdu: 'پینٹر', icon: '🎨', demand: 10, created_at: '2023-01-01T00:00:00Z', worker_count: 345 },
-  { id: 'c2', name: 'Electrician', name_urdu: 'بجلی کا کام', icon: '⚡', demand: 9, created_at: '2023-01-01T00:00:00Z', worker_count: 298 },
-  { id: 'c3', name: 'Plumber', name_urdu: 'پلمبر', icon: '🔧', demand: 8, created_at: '2023-01-01T00:00:00Z', worker_count: 256 },
-  { id: 'c4', name: 'Mason', name_urdu: 'راج', icon: '🧱', demand: 7, created_at: '2023-01-01T00:00:00Z', worker_count: 198 },
-  { id: 'c5', name: 'Carpenter', name_urdu: 'تختی', icon: '🪚', demand: 8, created_at: '2023-01-01T00:00:00Z', worker_count: 187 },
-  { id: 'c6', name: 'Welder', name_urdu: 'ولڈر', icon: '🔥', demand: 6, created_at: '2023-01-01T00:00:00Z', worker_count: 98 },
-  { id: 'c7', name: 'Tile Fixer', name_urdu: 'ٹائل فکسر', icon: '🔲', demand: 7, created_at: '2023-01-01T00:00:00Z', worker_count: 145 },
-  { id: 'c8', name: 'POP Ceiling', name_urdu: 'پاپ سیلنگ', icon: '🏠', demand: 6, created_at: '2023-01-01T00:00:00Z', worker_count: 87 },
-  { id: 'c9', name: 'Gardener', name_urdu: 'باغبان', icon: '🌿', demand: 5, created_at: '2023-01-01T00:00:00Z', worker_count: 67 },
-  { id: 'c10', name: 'Cleaner', name_urdu: 'صفائی', icon: '🧹', demand: 5, created_at: '2023-01-01T00:00:00Z', worker_count: 56 },
-  { id: 'c11', name: 'Mover', name_urdu: 'منقولات', icon: '📦', demand: 4, created_at: '2023-01-01T00:00:00Z', worker_count: 45 },
-  { id: 'c12', name: 'AC Technician', name_urdu: 'اے سی ٹیکنیشن', icon: '❄️', demand: 9, created_at: '2023-01-01T00:00:00Z', worker_count: 234 },
-  { id: 'c13', name: 'Glass Worker', name_urdu: 'شیشہ', icon: '🪟', demand: 4, created_at: '2023-01-01T00:00:00Z', worker_count: 34 },
-  { id: 'c14', name: 'General Helper', name_urdu: 'ہیلپر', icon: '👷', demand: 10, created_at: '2023-01-01T00:00:00Z', worker_count: 132 },
-]
+function CategoriesContent() {
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [categories, setCategories] = useState<Category[]>(mockCategories);
+  const [editCategory, setEditCategory] = useState<Category | null>(null);
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
 
-export default function CategoriesPage() {
-  const [categories, setCategories] = useState<Category[]>(sampleCategories)
-  const [editingId, setEditingId] = useState<string | null>(null)
-  const [editDemand, setEditDemand] = useState<number>(0)
+  const [formData, setFormData] = useState({
+    name: "",
+    description: "",
+    icon: "🔧",
+    base_rate: 0,
+    commission_rate: 15,
+    is_active: true,
+  });
 
-  const getDemandColor = (demand: number) => {
-    if (demand >= 8) return 'text-green-600'
-    if (demand >= 5) return 'text-amber-600'
-    return 'text-slate-500'
-  }
+  const filteredCategories = categories.filter(
+    (cat) =>
+      cat.name.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
-  const getDemandBg = (demand: number) => {
-    if (demand >= 8) return 'bg-green-100'
-    if (demand >= 5) return 'bg-amber-100'
-    return 'bg-slate-100'
-  }
+  const handleCreate = () => {
+    setFormData({
+      name: "",
+      description: "",
+      icon: "🔧",
+      base_rate: 0,
+      commission_rate: 15,
+      is_active: true,
+    });
+    setEditCategory(null);
+    setIsCreateOpen(true);
+  };
 
-  const getDemandLabel = (demand: number) => {
-    if (demand >= 9) return 'Very High'
-    if (demand >= 7) return 'High'
-    if (demand >= 5) return 'Medium'
-    if (demand >= 3) return 'Low'
-    return 'Very Low'
-  }
+  const handleEdit = (category: Category) => {
+    setFormData({
+      name: category.name,
+      description: category.description || "",
+      icon: category.icon,
+      base_rate: category.base_rate,
+      commission_rate: category.commission_rate,
+      is_active: category.is_active,
+    });
+    setEditCategory(category);
+    setIsCreateOpen(true);
+  };
 
-  const handleEditDemand = (cat: Category) => {
-    setEditingId(cat.id)
-    setEditDemand(cat.demand)
-  }
+  const handleSave = () => {
+    if (editCategory) {
+      setCategories(
+        categories.map((c) =>
+          c.id === editCategory.id
+            ? { ...c, ...formData }
+            : c
+        )
+      );
+    } else {
+      const newCategory: Category = {
+        id: String(categories.length + 1),
+        ...formData,
+        total_workers: 0,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+      setCategories([...categories, newCategory]);
+    }
+    setIsCreateOpen(false);
+  };
 
-  const handleSaveDemand = async (cat: Category) => {
-    setCategories((prev) =>
-      prev.map((c) => (c.id === cat.id ? { ...c, demand: editDemand } : c))
-    )
-    setEditingId(null)
-    try {
-      await supabase.from('categories').update({ demand: editDemand }).eq('id', cat.id)
-    } catch (err) {}
-  }
+  const handleDelete = (id: string) => {
+    setCategories(categories.filter((c) => c.id !== id));
+    setDeleteConfirm(null);
+  };
 
-  const handleCancelEdit = () => {
-    setEditingId(null)
-    setEditDemand(0)
-  }
-
-  const totalWorkers = categories.reduce((sum, cat) => sum + (cat.worker_count || 0), 0)
+  const handleToggleActive = (id: string) => {
+    setCategories(
+      categories.map((c) =>
+        c.id === id ? { ...c, is_active: !c.is_active } : c
+      )
+    );
+  };
 
   return (
-    <div className="min-h-screen bg-slate-50">
-      <Header title="Categories Management" />
+    <>
+      <Header title="Categories" onMenuClick={() => setMobileMenuOpen(!mobileMenuOpen)} />
 
-      <div className="p-4 sm:p-6 space-y-6">
-        {/* Summary */}
-        <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
+      <main className="p-4 sm:p-6 space-y-6">
+        {/* Actions */}
+        <div className="flex flex-col sm:flex-row gap-4 justify-between">
+          <div className="relative flex-1 max-w-md">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+            <Input
+              placeholder="Search categories..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-9"
+            />
+          </div>
+          <Button
+            onClick={handleCreate}
+            className="bg-orange-500 hover:bg-orange-600 text-white"
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            Add Category
+          </Button>
+        </div>
+
+        {/* Summary Cards */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <Card>
             <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-orange-100">
-                  <Grid3X3 className="h-5 w-5 text-orange-600" />
-                </div>
-                <div>
-                  <p className="text-sm text-slate-500">Total Categories</p>
-                  <p className="text-2xl font-bold text-slate-900">{categories.length}</p>
-                </div>
-              </div>
+              <p className="text-2xl font-bold">{categories.length}</p>
+              <p className="text-xs text-gray-500">Total Categories</p>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-100">
-                  <Users className="h-5 w-5 text-blue-600" />
-                </div>
-                <div>
-                  <p className="text-sm text-slate-500">Total Workers</p>
-                  <p className="text-2xl font-bold text-slate-900">{totalWorkers.toLocaleString()}</p>
-                </div>
-              </div>
+              <p className="text-2xl font-bold text-green-600">
+                {categories.filter((c) => c.is_active).length}
+              </p>
+              <p className="text-xs text-gray-500">Active</p>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-green-100">
-                  <TrendingUp className="h-5 w-5 text-green-600" />
-                </div>
-                <div>
-                  <p className="text-sm text-slate-500">Avg Workers/Category</p>
-                  <p className="text-2xl font-bold text-slate-900">{Math.round(totalWorkers / categories.length)}</p>
-                </div>
-              </div>
+              <p className="text-2xl font-bold text-gray-500">
+                {categories.filter((c) => !c.is_active).length}
+              </p>
+              <p className="text-xs text-gray-500">Inactive</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-4">
+              <p className="text-2xl font-bold text-orange-600">
+                {categories.reduce((sum, c) => sum + c.total_workers, 0).toLocaleString()}
+              </p>
+              <p className="text-xs text-gray-500">Total Workers</p>
             </CardContent>
           </Card>
         </div>
 
-        {/* Categories Grid */}
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {categories.map((cat) => (
-            <Card key={cat.id} className="hover:shadow-md transition-shadow">
-              <CardContent className="p-5">
-                {/* Header */}
-                <div className="flex items-start justify-between">
-                  <div className="flex items-center gap-3">
-                    <span className="text-3xl">{cat.icon}</span>
-                    <div>
-                      <h3 className="font-semibold text-slate-900">{cat.name}</h3>
-                      <p className="text-sm text-slate-500" dir="rtl">{cat.name_urdu}</p>
-                    </div>
-                  </div>
-                  <Badge className={cn('text-[10px]', getDemandBg(cat.demand), getDemandColor(cat.demand))}>
-                    {getDemandLabel(cat.demand)}
-                  </Badge>
-                </div>
-
-                {/* Worker count */}
-                <div className="mt-4 flex items-center gap-2">
-                  <Users className="h-4 w-4 text-slate-400" />
-                  <p className="text-sm text-slate-600">
-                    <span className="font-semibold">{cat.worker_count || 0}</span> workers
-                  </p>
-                </div>
-
-                {/* Demand Meter */}
-                <div className="mt-4">
-                  <div className="flex items-center justify-between mb-1.5">
-                    <span className="text-xs text-slate-500">Demand Level</span>
-                    <span className={cn('text-xs font-semibold', getDemandColor(cat.demand))}>{cat.demand}/10</span>
-                  </div>
-                  <div className="h-2 rounded-full bg-slate-100 overflow-hidden">
-                    <div
-                      className={cn(
-                        'h-full rounded-full transition-all duration-300',
-                        cat.demand >= 8 ? 'bg-green-500' : cat.demand >= 5 ? 'bg-amber-500' : 'bg-slate-400'
-                      )}
-                      style={{ width: `${cat.demand * 10}%` }}
-                    />
-                  </div>
-                  {/* Demand dots */}
-                  <div className="mt-1 flex gap-0.5">
-                    {Array.from({ length: 10 }, (_, i) => (
-                      <div
-                        key={i}
-                        className={cn(
-                          'h-1 flex-1 rounded-full',
-                          i < cat.demand
-                            ? cat.demand >= 8
-                              ? 'bg-green-500'
-                              : cat.demand >= 5
-                              ? 'bg-amber-500'
-                              : 'bg-slate-400'
-                            : 'bg-slate-100'
-                        )}
-                      />
-                    ))}
-                  </div>
-                </div>
-
-                {/* Edit Demand */}
-                <div className="mt-4 flex items-center justify-between border-t pt-3">
-                  {editingId === cat.id ? (
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="range"
-                        min="1"
-                        max="10"
-                        value={editDemand}
-                        onChange={(e) => setEditDemand(parseInt(e.target.value))}
-                        className="w-24 accent-orange-500"
-                      />
-                      <span className="text-sm font-medium w-6 text-center">{editDemand}</span>
-                      <Button size="sm" className="h-7 px-2 text-xs" onClick={() => handleSaveDemand(cat)}>
-                        <Save className="h-3 w-3" />
-                      </Button>
-                      <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={handleCancelEdit}>
-                        <X className="h-3 w-3" />
-                      </Button>
-                    </div>
-                  ) : (
-                    <>
-                      <p className="text-xs text-slate-400">Updated {new Date(cat.created_at).toLocaleDateString()}</p>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="h-7 text-xs text-primary hover:text-primary-600"
-                        onClick={() => handleEditDemand(cat)}
+        {/* Categories Table */}
+        <Card>
+          <CardContent className="p-0">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Category</TableHead>
+                  <TableHead className="hidden md:table-cell">Base Rate</TableHead>
+                  <TableHead className="hidden md:table-cell">Commission</TableHead>
+                  <TableHead className="hidden sm:table-cell">Workers</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredCategories.map((category) => (
+                  <TableRow key={category.id}>
+                    <TableCell>
+                      <div className="flex items-center gap-3">
+                        <span className="text-2xl">{category.icon}</span>
+                        <div>
+                          <p className="font-medium text-gray-900 text-sm">{category.name}</p>
+                          <p className="text-xs text-gray-500 max-w-[200px] truncate">{category.description}</p>
+                        </div>
+                      </div>
+                    </TableCell>
+                    <TableCell className="hidden md:table-cell">
+                      <span className="text-sm font-medium">{formatCurrency(category.base_rate)}/hr</span>
+                    </TableCell>
+                    <TableCell className="hidden md:table-cell">
+                      <span className="text-sm font-medium">{category.commission_rate}%</span>
+                    </TableCell>
+                    <TableCell className="hidden sm:table-cell">
+                      <div className="flex items-center gap-1">
+                        <Users className="h-3.5 w-3.5 text-gray-400" />
+                        <span className="text-sm">{category.total_workers}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <button
+                        onClick={() => handleToggleActive(category.id)}
+                        className="flex items-center gap-1.5"
                       >
-                        <Edit3 className="mr-1 h-3 w-3" /> Edit Demand
-                      </Button>
-                    </>
-                  )}
+                        {category.is_active ? (
+                          <CheckCircle2 className="h-4 w-4 text-green-500" />
+                        ) : (
+                          <XCircle className="h-4 w-4 text-gray-400" />
+                        )}
+                      </button>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex items-center justify-end gap-1">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleEdit(category)}
+                          className="text-gray-500 hover:text-orange-600"
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setDeleteConfirm(category.id)}
+                          className="text-gray-500 hover:text-red-600"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+
+        {/* Create/Edit Dialog */}
+        <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>
+                {editCategory ? "Edit Category" : "Add New Category"}
+              </DialogTitle>
+              <DialogDescription>
+                {editCategory
+                  ? "Update category details"
+                  : "Create a new worker category"}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 mt-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Name</Label>
+                  <Input
+                    value={formData.name}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    placeholder="Category name"
+                  />
                 </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      </div>
-    </div>
-  )
+                <div className="space-y-2">
+                  <Label>Icon</Label>
+                  <Input
+                    value={formData.icon}
+                    onChange={(e) => setFormData({ ...formData, icon: e.target.value })}
+                    placeholder="🔧"
+                    className="text-center text-2xl"
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label>Description</Label>
+                <Input
+                  value={formData.description}
+                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                  placeholder="Category description"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Base Rate (PKR/hr)</Label>
+                  <Input
+                    type="number"
+                    value={formData.base_rate}
+                    onChange={(e) => setFormData({ ...formData, base_rate: Number(e.target.value) })}
+                    placeholder="800"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Commission Rate (%)</Label>
+                  <Input
+                    type="number"
+                    value={formData.commission_rate}
+                    onChange={(e) => setFormData({ ...formData, commission_rate: Number(e.target.value) })}
+                    placeholder="15"
+                  />
+                </div>
+              </div>
+            </div>
+            <DialogFooter className="mt-4">
+              <Button variant="outline" onClick={() => setIsCreateOpen(false)}>
+                Cancel
+              </Button>
+              <Button
+                onClick={handleSave}
+                className="bg-orange-500 hover:bg-orange-600 text-white"
+                disabled={!formData.name}
+              >
+                {editCategory ? "Update" : "Create"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Delete Confirmation Dialog */}
+        <Dialog open={!!deleteConfirm} onOpenChange={() => setDeleteConfirm(null)}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Delete Category</DialogTitle>
+              <DialogDescription>
+                Are you sure you want to delete this category? This action cannot be undone.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setDeleteConfirm(null)}>
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={() => deleteConfirm && handleDelete(deleteConfirm)}
+              >
+                Delete
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </main>
+    </>
+  );
+}
+
+export default function CategoriesPage() {
+  return <CategoriesContent />;
 }

@@ -1,72 +1,67 @@
-'use client'
+"use client";
 
-import React, { useState } from 'react'
-import { Bell, Search, Menu, X } from 'lucide-react'
-import { Input } from '@/components/ui/input'
-import { Badge } from '@/components/ui/badge'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import React from "react";
+import { Bell, Menu, Search } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 interface HeaderProps {
-  title?: string
+  title: string;
+  onMenuClick: () => void;
 }
 
-export default function Header({ title = 'Dashboard' }: HeaderProps) {
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
-  const [searchQuery, setSearchQuery] = useState('')
-
+export function Header({ title, onMenuClick }: HeaderProps) {
   return (
-    <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-slate-200 bg-white px-4 sm:px-6">
+    <header className="sticky top-0 z-30 flex h-16 items-center gap-4 border-b border-gray-200 bg-white px-4 sm:px-6">
       {/* Mobile menu button */}
-      <button
-        className="mr-3 rounded-lg p-2 hover:bg-slate-100 lg:hidden"
-        onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+      <Button
+        variant="ghost"
+        size="icon"
+        className="lg:hidden"
+        onClick={onMenuClick}
       >
-        {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-      </button>
+        <Menu className="h-5 w-5" />
+        <span className="sr-only">Toggle menu</span>
+      </Button>
 
       {/* Page title */}
-      <div>
-        <h1 className="text-xl font-bold text-slate-900">{title}</h1>
+      <h1 className="text-xl font-semibold text-gray-900">{title}</h1>
+
+      <div className="flex-1" />
+
+      {/* Search bar (hidden on mobile) */}
+      <div className="hidden md:flex items-center">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+          <Input
+            placeholder="Search..."
+            className="w-64 pl-9 bg-gray-50 border-gray-200"
+          />
+        </div>
       </div>
 
-      {/* Right section */}
-      <div className="flex items-center gap-4">
-        {/* Search */}
-        <div className="hidden items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 md:flex">
-          <Search className="h-4 w-4 text-slate-400" />
-          <input
-            type="text"
-            placeholder="Search..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-48 bg-transparent text-sm outline-none placeholder:text-slate-400"
-          />
-          <kbd className="hidden rounded bg-slate-200 px-1.5 py-0.5 text-xs text-slate-500 sm:inline">
-            ⌘K
-          </kbd>
-        </div>
+      {/* Notifications */}
+      <Button variant="ghost" size="icon" className="relative text-gray-500 hover:text-gray-700">
+        <Bell className="h-5 w-5" />
+        <span className="absolute -top-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-medium text-white">
+          3
+        </span>
+      </Button>
 
-        {/* Notifications */}
-        <button className="relative rounded-lg p-2 hover:bg-slate-100">
-          <Bell className="h-5 w-5 text-slate-600" />
-          <span className="absolute right-1 top-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white">
-            3
-          </span>
-        </button>
-
-        {/* Admin avatar */}
-        <div className="flex items-center gap-3">
-          <Avatar className="h-8 w-8">
-            <AvatarFallback className="bg-orange-100 text-orange-700 text-xs font-semibold">
-              AD
-            </AvatarFallback>
-          </Avatar>
-          <div className="hidden sm:block">
-            <p className="text-sm font-medium text-slate-900">Admin</p>
-            <p className="text-xs text-slate-500">Super Admin</p>
-          </div>
+      {/* User avatar */}
+      <div className="flex items-center gap-3">
+        <Avatar className="h-8 w-8">
+          <AvatarImage src="" alt="Admin" />
+          <AvatarFallback className="bg-orange-100 text-orange-700 text-sm font-semibold">
+            AD
+          </AvatarFallback>
+        </Avatar>
+        <div className="hidden sm:block">
+          <p className="text-sm font-medium text-gray-900">Admin</p>
+          <p className="text-xs text-gray-500">Super Admin</p>
         </div>
       </div>
     </header>
-  )
+  );
 }

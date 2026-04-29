@@ -1,91 +1,198 @@
-'use client'
+"use client";
 
-import React from 'react'
-import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import React, { useState } from "react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { cn } from "@/lib/utils";
 import {
   LayoutDashboard,
   Users,
-  Briefcase,
   Building2,
+  Briefcase,
   Grid3X3,
   DollarSign,
   AlertTriangle,
   Settings,
   LogOut,
+  ChevronLeft,
+  ChevronRight,
   HardHat,
-} from 'lucide-react'
+  Menu,
+  X,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Separator } from "@/components/ui/separator";
 
 const navItems = [
-  { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-  { label: 'Workers', href: '/dashboard/workers', icon: Users },
-  { label: 'Employers', href: '/dashboard/employers', icon: Building2 },
-  { label: 'Jobs', href: '/dashboard/jobs', icon: Briefcase },
-  { label: 'Categories', href: '/dashboard/categories', icon: Grid3X3 },
-  { label: 'Financials', href: '/dashboard/financials', icon: DollarSign },
-  { label: 'SOS Alerts', href: '/dashboard/sos-alerts', icon: AlertTriangle },
-  { label: 'Settings', href: '/dashboard/settings', icon: Settings },
-]
+  {
+    label: "Dashboard",
+    href: "/dashboard",
+    icon: LayoutDashboard,
+  },
+  {
+    label: "Workers",
+    href: "/dashboard/workers",
+    icon: Users,
+  },
+  {
+    label: "Employers",
+    href: "/dashboard/employers",
+    icon: Building2,
+  },
+  {
+    label: "Jobs",
+    href: "/dashboard/jobs",
+    icon: Briefcase,
+  },
+  {
+    label: "Categories",
+    href: "/dashboard/categories",
+    icon: Grid3X3,
+  },
+  {
+    label: "Financials",
+    href: "/dashboard/financials",
+    icon: DollarSign,
+  },
+  {
+    label: "SOS Alerts",
+    href: "/dashboard/sos-alerts",
+    icon: AlertTriangle,
+    badge: 2,
+  },
+  {
+    label: "Settings",
+    href: "/dashboard/settings",
+    icon: Settings,
+  },
+];
 
 interface SidebarProps {
-  className?: string
+  collapsed: boolean;
+  onToggle: () => void;
+  mobileOpen: boolean;
+  onMobileClose: () => void;
 }
 
-export default function Sidebar({ className = '' }: SidebarProps) {
-  const pathname = usePathname()
+export function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose }: SidebarProps) {
+  const pathname = usePathname();
 
-  const isActive = (href: string) => {
-    if (href === '/dashboard') return pathname === '/dashboard'
-    return pathname.startsWith(href)
-  }
-
-  return (
-    <aside
-      className={`fixed left-0 top-0 z-40 flex h-screen w-64 flex-col bg-[#1E293B] ${className}`}
-    >
+  const sidebarContent = (
+    <div className="flex h-full flex-col bg-white border-r border-gray-200">
       {/* Logo */}
-      <div className="flex items-center gap-3 border-b border-white/10 px-6 py-5">
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-orange-400 to-orange-600 shadow-lg shadow-orange-500/25">
-          <HardHat className="h-6 w-6 text-white" />
+      <div className="flex h-16 items-center gap-3 px-4 border-b border-gray-200">
+        <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-orange-500 text-white shrink-0">
+          <HardHat className="h-6 w-6" />
         </div>
-        <div>
-          <h1 className="text-lg font-bold text-white">MazdoorPing</h1>
-          <p className="text-xs text-slate-400">Admin Panel</p>
-        </div>
+        {!collapsed && (
+          <div className="overflow-hidden">
+            <h1 className="text-lg font-bold text-gray-900 truncate">MazdoorPing</h1>
+            <p className="text-xs text-gray-500 truncate">Admin Panel</p>
+          </div>
+        )}
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 space-y-1 overflow-y-auto px-4 py-6">
+      <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
         {navItems.map((item) => {
-          const Icon = item.icon
-          const active = isActive(item.href)
+          const isActive =
+            pathname === item.href ||
+            (item.href !== "/dashboard" && pathname.startsWith(item.href));
+
           return (
             <Link
               key={item.href}
               href={item.href}
-              className={`sidebar-link ${active ? 'active' : 'text-slate-400'}`}
+              onClick={onMobileClose}
+              className={cn(
+                "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-200",
+                isActive
+                  ? "bg-orange-50 text-orange-700 shadow-sm"
+                  : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+              )}
             >
-              <Icon className="h-5 w-5 flex-shrink-0" />
-              <span>{item.label}</span>
+              <item.icon
+                className={cn(
+                  "h-5 w-5 shrink-0",
+                  isActive ? "text-orange-600" : "text-gray-400"
+                )}
+              />
+              {!collapsed && (
+                <span className="truncate">{item.label}</span>
+              )}
+              {!collapsed && item.badge && (
+                <span className="ml-auto flex h-5 min-w-[20px] items-center justify-center rounded-full bg-red-500 px-1.5 text-xs font-medium text-white">
+                  {item.badge}
+                </span>
+              )}
             </Link>
-          )
+          );
         })}
       </nav>
 
-      {/* Bottom section */}
-      <div className="border-t border-white/10 p-4">
+      {/* Collapse Button (Desktop) */}
+      <div className="hidden lg:block border-t border-gray-200 p-3">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={onToggle}
+          className="w-full justify-center text-gray-500 hover:text-gray-700"
+        >
+          {collapsed ? (
+            <ChevronRight className="h-4 w-4" />
+          ) : (
+            <>
+              <ChevronLeft className="h-4 w-4 mr-2" />
+              <span>Collapse</span>
+            </>
+          )}
+        </Button>
+      </div>
+
+      {/* User section */}
+      <Separator />
+      <div className="p-3">
         <Link
           href="/login"
-          className="sidebar-link text-slate-400 hover:text-red-300"
+          onClick={onMobileClose}
+          className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-gray-600 hover:bg-red-50 hover:text-red-600 transition-colors"
         >
-          <LogOut className="h-5 w-5 flex-shrink-0" />
-          <span>Sign Out</span>
+          <LogOut className="h-5 w-5" />
+          {!collapsed && <span>Sign Out</span>}
         </Link>
-        <div className="mt-3 px-4">
-          <p className="text-xs text-slate-500">MazdoorPing v1.0.0</p>
-          <p className="text-xs text-slate-600">Pakistan&apos;s #1 Labor App</p>
-        </div>
       </div>
-    </aside>
-  )
+    </div>
+  );
+
+  return (
+    <>
+      {/* Mobile overlay */}
+      {mobileOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-black/50 lg:hidden"
+          onClick={onMobileClose}
+        />
+      )}
+
+      {/* Mobile sidebar */}
+      <aside
+        className={cn(
+          "fixed inset-y-0 left-0 z-50 w-64 transform transition-transform duration-300 ease-in-out lg:hidden",
+          mobileOpen ? "translate-x-0" : "-translate-x-full"
+        )}
+      >
+        {sidebarContent}
+      </aside>
+
+      {/* Desktop sidebar */}
+      <aside
+        className={cn(
+          "hidden lg:block h-screen sticky top-0 shrink-0 transition-all duration-300",
+          collapsed ? "w-[72px]" : "w-64"
+        )}
+      >
+        {sidebarContent}
+      </aside>
+    </>
+  );
 }

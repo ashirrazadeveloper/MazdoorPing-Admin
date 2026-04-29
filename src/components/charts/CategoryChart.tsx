@@ -1,6 +1,6 @@
-'use client'
+"use client";
 
-import React from 'react'
+import React from "react";
 import {
   BarChart,
   Bar,
@@ -9,87 +9,55 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-} from 'recharts'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-
-const sampleData = [
-  { name: 'Painter', jobs: 345, fill: '#F97316' },
-  { name: 'Electrician', jobs: 298, fill: '#EA580C' },
-  { name: 'Plumber', jobs: 256, fill: '#F59E0B' },
-  { name: 'AC Tech', jobs: 234, fill: '#10B981' },
-  { name: 'Mason', jobs: 198, fill: '#6366F1' },
-  { name: 'Carpenter', jobs: 187, fill: '#3B82F6' },
-  { name: 'Tile Fixer', jobs: 145, fill: '#EC4899' },
-  { name: 'Helper', jobs: 132, fill: '#8B5CF6' },
-  { name: 'Welder', jobs: 98, fill: '#14B8A6' },
-  { name: 'POP', jobs: 87, fill: '#F43F5E' },
-  { name: 'Gardener', jobs: 67, fill: '#84CC16' },
-  { name: 'Cleaner', jobs: 56, fill: '#06B6D4' },
-  { name: 'Mover', jobs: 45, fill: '#A855F7' },
-  { name: 'Glass', jobs: 34, fill: '#64748B' },
-]
+} from "recharts";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 interface CategoryChartProps {
-  data?: typeof sampleData
+  data: { name: string; workers: number; jobs: number }[];
 }
 
-export default function CategoryChart({ data = sampleData }: CategoryChartProps) {
+export function CategoryChart({ data }: CategoryChartProps) {
   return (
     <Card>
       <CardHeader className="pb-2">
-        <CardTitle className="text-base font-semibold text-slate-900">
+        <CardTitle className="text-base font-semibold text-gray-900">
           Jobs by Category
         </CardTitle>
-        <p className="text-xs text-slate-500">Number of jobs per labor category</p>
+        <p className="text-sm text-gray-500">Workers and jobs distribution</p>
       </CardHeader>
       <CardContent>
-        <div className="h-72">
+        <div className="h-[300px] w-full">
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart
-              data={data}
-              layout="vertical"
-              margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
-            >
-              <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" horizontal={false} />
+            <BarChart data={data} margin={{ top: 5, right: 10, left: 10, bottom: 5 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
               <XAxis
-                type="number"
-                tick={{ fill: '#94A3B8', fontSize: 12 }}
+                dataKey="name"
+                tick={{ fontSize: 11, fill: "#9ca3af" }}
                 tickLine={false}
-                axisLine={{ stroke: '#E2E8F0' }}
+                axisLine={{ stroke: "#e5e7eb" }}
+                angle={-35}
+                textAnchor="end"
+                height={70}
               />
               <YAxis
-                dataKey="name"
-                type="category"
-                tick={{ fill: '#64748B', fontSize: 11 }}
+                tick={{ fontSize: 12, fill: "#9ca3af" }}
                 tickLine={false}
-                axisLine={false}
-                width={80}
+                axisLine={{ stroke: "#e5e7eb" }}
               />
               <Tooltip
                 contentStyle={{
-                  backgroundColor: '#fff',
-                  border: '1px solid #E2E8F0',
-                  borderRadius: '12px',
-                  boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)',
-                  padding: '12px',
+                  backgroundColor: "#fff",
+                  border: "1px solid #e5e7eb",
+                  borderRadius: "8px",
+                  boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)",
                 }}
-                cursor={{ fill: '#FFF7ED', opacity: 0.5 }}
               />
-              <Bar
-                dataKey="jobs"
-                radius={[0, 6, 6, 0]}
-                barSize={20}
-              >
-                {data.map((entry, index) => (
-                  <React.Fragment key={index}>
-                    <rect fill={entry.fill} />
-                  </React.Fragment>
-                ))}
-              </Bar>
+              <Bar dataKey="workers" name="Workers" fill="#FB923C" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="jobs" name="Jobs" fill="#F97316" radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </div>
       </CardContent>
     </Card>
-  )
+  );
 }
