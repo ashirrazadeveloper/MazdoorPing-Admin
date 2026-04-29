@@ -1,0 +1,17 @@
+{
+  "name": "MazdoorPing Admin",
+  "short_name": "MazdoorPing",
+  "description": "Admin panel for MazdoorPing - Pakistan's #1 labor marketplace",
+  "start_url": "/dashboard",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#F97316",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "/favicon.ico",
+      "sizes": "64x64",
+      "type": "image/x-icon"
+    }
+  ]
+}
