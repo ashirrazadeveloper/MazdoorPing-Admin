@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { signInAdmin } from "@/lib/services";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -21,34 +22,38 @@ export default function LoginPage() {
     setLoading(true);
     setError("");
 
-    // For demo purposes, allow login with any credentials
-    // In production, this would use Supabase Auth
+    if (!email || !password) {
+      setError("Please enter both email and password");
+      setLoading(false);
+      return;
+    }
+
     try {
-      if (!email || !password) {
-        setError("Please enter both email and password");
+      const { data, error: authError } = await signInAdmin(email, password);
+
+      if (authError) {
+        setError(authError.message);
+        setLoading(false);
         return;
       }
 
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      if (data.user) {
+        // Check if user has admin role
+        const { supabase } = await import("@/lib/supabase");
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("role")
+          .eq("id", data.user.id)
+          .single();
 
-      // For demo: accept admin@mazdoorping.pk / admin123
-      if (email === "admin@mazdoorping.pk" && password === "admin123") {
-        localStorage.setItem("admin_auth", JSON.stringify({
-          email,
-          role: "super_admin",
-          name: "Admin User",
-          isAuthenticated: true,
-        }));
-        router.push("/dashboard");
-      } else {
-        // Also allow any login for demo purposes
-        localStorage.setItem("admin_auth", JSON.stringify({
-          email,
-          role: "admin",
-          name: email.split("@")[0],
-          isAuthenticated: true,
-        }));
+        if (profile?.role !== "admin") {
+          // Sign out non-admin users
+          await supabase.auth.signOut();
+          setError("Access denied. Admin only.");
+          setLoading(false);
+          return;
+        }
+
         router.push("/dashboard");
       }
     } catch {
@@ -139,22 +144,13 @@ export default function LoginPage() {
                   "Sign In"
                 )}
               </Button>
-
-              {/* Demo credentials hint */}
-              <div className="rounded-lg bg-orange-50 border border-orange-200 p-3 mt-4">
-                <p className="text-xs text-orange-700 font-medium mb-1">Demo Credentials</p>
-                <p className="text-xs text-orange-600">
-                  Email: admin@mazdoorping.pk<br />
-                  Password: admin123
-                </p>
-              </div>
             </form>
           </CardContent>
         </Card>
 
         {/* Footer */}
         <p className="text-center text-xs text-gray-400 mt-6">
-          © 2024 MazdoorPing. All rights reserved.
+          &copy; 2024 MazdoorPing. All rights reserved.
         </p>
       </div>
     </div>

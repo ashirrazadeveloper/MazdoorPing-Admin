@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Header } from "@/components/layout/Header";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
+import { getSettings, upsertSetting } from "@/lib/services";
 import {
   Settings,
   Save,
@@ -23,10 +24,18 @@ import {
   DollarSign,
   Plus,
   X,
+  Loader2,
 } from "lucide-react";
+
+interface SettingRow {
+  key: string;
+  value: string;
+}
 
 function SettingsContent() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
   const [commissionRate, setCommissionRate] = useState(15);
@@ -35,30 +44,88 @@ function SettingsContent() {
   const [supportPhone, setSupportPhone] = useState("+92-300-0000000");
   const [supportEmail, setSupportEmail] = useState("support@mazdoorping.pk");
 
-  const [cities, setCities] = useState([
-    "Lahore",
-    "Karachi",
-    "Islamabad",
-    "Rawalpindi",
-    "Faisalabad",
-    "Peshawar",
-    "Multan",
-    "Quetta",
-  ]);
-
-  const [paymentMethods, setPaymentMethods] = useState([
-    "JazzCash",
-    "Easypaisa",
-    "Bank Transfer",
-    "Cash on Delivery",
-  ]);
+  const [cities, setCities] = useState<string[]>([]);
+  const [paymentMethods, setPaymentMethods] = useState<string[]>([]);
 
   const [newCity, setNewCity] = useState("");
   const [newPaymentMethod, setNewPaymentMethod] = useState("");
 
-  const handleSave = () => {
-    setSaved(true);
-    setTimeout(() => setSaved(false), 3000);
+  useEffect(() => {
+    const fetchSettings = async () => {
+      setLoading(true);
+      try {
+        const data = await getSettings();
+        const rows = data as SettingRow[];
+        rows.forEach((row) => {
+          switch (row.key) {
+            case "commission_rate":
+              setCommissionRate(Number(row.value) || 15);
+              break;
+            case "min_withdrawal":
+              setMinWithdrawal(Number(row.value) || 500);
+              break;
+            case "max_job_budget":
+              setMaxJobBudget(Number(row.value) || 500000);
+              break;
+            case "support_phone":
+              setSupportPhone(row.value || "+92-300-0000000");
+              break;
+            case "support_email":
+              setSupportEmail(row.value || "support@mazdoorping.pk");
+              break;
+            case "supported_cities":
+              try {
+                setCities(JSON.parse(row.value));
+              } catch {
+                setCities([]);
+              }
+              break;
+            case "payment_methods":
+              try {
+                setPaymentMethods(JSON.parse(row.value));
+              } catch {
+                setPaymentMethods([]);
+              }
+              break;
+          }
+        });
+      } catch (err) {
+        console.error("Failed to fetch settings:", err);
+      }
+      setLoading(false);
+    };
+    fetchSettings();
+  }, []);
+
+  const handleSaveSetting = async (key: string, value: string) => {
+    setSaving(true);
+    try {
+      await upsertSetting(key, value);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+    } catch (err) {
+      console.error("Failed to save setting:", err);
+    }
+    setSaving(false);
+  };
+
+  const handleSaveGeneral = () => {
+    handleSaveSetting("commission_rate", String(commissionRate));
+    handleSaveSetting("min_withdrawal", String(minWithdrawal));
+    handleSaveSetting("max_job_budget", String(maxJobBudget));
+  };
+
+  const handleSaveCities = () => {
+    handleSaveSetting("supported_cities", JSON.stringify(cities));
+  };
+
+  const handleSavePayments = () => {
+    handleSaveSetting("payment_methods", JSON.stringify(paymentMethods));
+  };
+
+  const handleSaveSupport = () => {
+    handleSaveSetting("support_phone", supportPhone);
+    handleSaveSetting("support_email", supportEmail);
   };
 
   const addCity = () => {
@@ -82,6 +149,29 @@ function SettingsContent() {
   const removePaymentMethod = (method: string) => {
     setPaymentMethods(paymentMethods.filter((m) => m !== method));
   };
+
+  if (loading) {
+    return (
+      <>
+        <Header title="Settings" onMenuClick={() => setMobileMenuOpen(!mobileMenuOpen)} />
+        <main className="p-4 sm:p-6 space-y-6">
+          <div className="space-y-4">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <Card key={i}>
+                <CardContent className="p-6 space-y-4">
+                  <div className="h-6 w-48 bg-gray-200 rounded animate-pulse" />
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="h-20 bg-gray-200 rounded animate-pulse" />
+                    <div className="h-20 bg-gray-200 rounded animate-pulse" />
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </main>
+      </>
+    );
+  }
 
   return (
     <>
@@ -163,10 +253,11 @@ function SettingsContent() {
 
                 <div className="flex justify-end">
                   <Button
-                    onClick={handleSave}
+                    onClick={handleSaveGeneral}
                     className="bg-orange-500 hover:bg-orange-600 text-white"
+                    disabled={saving}
                   >
-                    <Save className="h-4 w-4 mr-2" />
+                    {saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
                     Save Settings
                   </Button>
                 </div>
@@ -199,7 +290,7 @@ function SettingsContent() {
                   </Button>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  {cities.map((city) => (
+                  {cities.length > 0 ? cities.map((city) => (
                     <Badge
                       key={city}
                       variant="secondary"
@@ -214,17 +305,20 @@ function SettingsContent() {
                         <X className="h-3 w-3" />
                       </button>
                     </Badge>
-                  ))}
+                  )) : (
+                    <p className="text-sm text-gray-400">No cities configured yet</p>
+                  )}
                 </div>
                 <p className="text-xs text-gray-400">{cities.length} cities supported</p>
 
                 <Separator />
                 <div className="flex justify-end">
                   <Button
-                    onClick={handleSave}
+                    onClick={handleSaveCities}
                     className="bg-orange-500 hover:bg-orange-600 text-white"
+                    disabled={saving}
                   >
-                    <Save className="h-4 w-4 mr-2" />
+                    {saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
                     Save Cities
                   </Button>
                 </div>
@@ -257,7 +351,7 @@ function SettingsContent() {
                   </Button>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  {paymentMethods.map((method) => (
+                  {paymentMethods.length > 0 ? paymentMethods.map((method) => (
                     <Badge
                       key={method}
                       variant="secondary"
@@ -272,16 +366,19 @@ function SettingsContent() {
                         <X className="h-3 w-3" />
                       </button>
                     </Badge>
-                  ))}
+                  )) : (
+                    <p className="text-sm text-gray-400">No payment methods configured yet</p>
+                  )}
                 </div>
 
                 <Separator />
                 <div className="flex justify-end">
                   <Button
-                    onClick={handleSave}
+                    onClick={handleSavePayments}
                     className="bg-orange-500 hover:bg-orange-600 text-white"
+                    disabled={saving}
                   >
-                    <Save className="h-4 w-4 mr-2" />
+                    {saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
                     Save Payment Methods
                   </Button>
                 </div>
@@ -333,10 +430,11 @@ function SettingsContent() {
 
                 <div className="flex justify-end">
                   <Button
-                    onClick={handleSave}
+                    onClick={handleSaveSupport}
                     className="bg-orange-500 hover:bg-orange-600 text-white"
+                    disabled={saving}
                   >
-                    <Save className="h-4 w-4 mr-2" />
+                    {saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
                     Save Support Settings
                   </Button>
                 </div>
@@ -363,7 +461,7 @@ function SettingsContent() {
               </div>
               <div>
                 <p className="text-gray-500">Last Updated</p>
-                <p className="font-medium">March 20, 2024</p>
+                <p className="font-medium">{new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}</p>
               </div>
               <div>
                 <p className="text-gray-500">Database</p>

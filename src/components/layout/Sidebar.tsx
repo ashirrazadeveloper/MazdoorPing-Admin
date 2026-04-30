@@ -4,6 +4,8 @@ import React, { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
+import type { User } from "@supabase/supabase-js";
+import { useAuth } from "@/components/auth/AuthProvider";
 import {
   LayoutDashboard,
   Users,
@@ -19,63 +21,85 @@ import {
   HardHat,
   Menu,
   X,
+  Clock,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
-
-const navItems = [
-  {
-    label: "Dashboard",
-    href: "/dashboard",
-    icon: LayoutDashboard,
-  },
-  {
-    label: "Workers",
-    href: "/dashboard/workers",
-    icon: Users,
-  },
-  {
-    label: "Employers",
-    href: "/dashboard/employers",
-    icon: Building2,
-  },
-  {
-    label: "Jobs",
-    href: "/dashboard/jobs",
-    icon: Briefcase,
-  },
-  {
-    label: "Categories",
-    href: "/dashboard/categories",
-    icon: Grid3X3,
-  },
-  {
-    label: "Financials",
-    href: "/dashboard/financials",
-    icon: DollarSign,
-  },
-  {
-    label: "SOS Alerts",
-    href: "/dashboard/sos-alerts",
-    icon: AlertTriangle,
-    badge: 2,
-  },
-  {
-    label: "Settings",
-    href: "/dashboard/settings",
-    icon: Settings,
-  },
-];
+import { useEffect } from "react";
+import { supabase } from "@/lib/supabase";
 
 interface SidebarProps {
   collapsed: boolean;
   onToggle: () => void;
   mobileOpen: boolean;
   onMobileClose: () => void;
+  user: User | null;
+  onSignOut: () => Promise<void>;
 }
 
-export function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose }: SidebarProps) {
+export function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose, user, onSignOut }: SidebarProps) {
   const pathname = usePathname();
+  const [pendingWorkers, setPendingWorkers] = useState(0);
+  const [activeSOS, setActiveSOS] = useState(0);
+
+  useEffect(() => {
+    const fetchCounts = async () => {
+      const [wRes, sRes] = await Promise.all([
+        supabase.from("workers").select("id", { count: "exact", head: true }).eq("status", "pending"),
+        supabase.from("sos_alerts").select("id", { count: "exact", head: true }).eq("status", "active"),
+      ]);
+      setPendingWorkers(wRes.count || 0);
+      setActiveSOS(sRes.count || 0);
+    };
+    fetchCounts();
+    const interval = setInterval(fetchCounts, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const navItems = [
+    {
+      label: "Dashboard",
+      href: "/dashboard",
+      icon: LayoutDashboard,
+    },
+    {
+      label: "Workers",
+      href: "/dashboard/workers",
+      icon: Users,
+      badge: pendingWorkers > 0 ? pendingWorkers : undefined,
+    },
+    {
+      label: "Employers",
+      href: "/dashboard/employers",
+      icon: Building2,
+    },
+    {
+      label: "Jobs",
+      href: "/dashboard/jobs",
+      icon: Briefcase,
+    },
+    {
+      label: "Categories",
+      href: "/dashboard/categories",
+      icon: Grid3X3,
+    },
+    {
+      label: "Financials",
+      href: "/dashboard/financials",
+      icon: DollarSign,
+    },
+    {
+      label: "SOS Alerts",
+      href: "/dashboard/sos-alerts",
+      icon: AlertTriangle,
+      badge: activeSOS > 0 ? activeSOS : undefined,
+    },
+    {
+      label: "Settings",
+      href: "/dashboard/settings",
+      icon: Settings,
+    },
+  ];
 
   const sidebarContent = (
     <div className="flex h-full flex-col bg-white border-r border-gray-200">
@@ -125,6 +149,11 @@ export function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose }: Side
                   {item.badge}
                 </span>
               )}
+              {collapsed && item.badge && (
+                <span className="absolute -top-1 -right-1 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-medium text-white">
+                  {item.badge}
+                </span>
+              )}
             </Link>
           );
         })}
@@ -152,14 +181,21 @@ export function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose }: Side
       {/* User section */}
       <Separator />
       <div className="p-3">
-        <Link
-          href="/login"
-          onClick={onMobileClose}
-          className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-gray-600 hover:bg-red-50 hover:text-red-600 transition-colors"
+        {!collapsed && user && (
+          <div className="px-3 pb-2 truncate">
+            <p className="text-xs font-medium text-gray-900 truncate">
+              {user.email}
+            </p>
+            <p className="text-xs text-gray-500">Super Admin</p>
+          </div>
+        )}
+        <button
+          onClick={onSignOut}
+          className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-gray-600 hover:bg-red-50 hover:text-red-600 transition-colors w-full"
         >
           <LogOut className="h-5 w-5" />
           {!collapsed && <span>Sign Out</span>}
-        </Link>
+        </button>
       </div>
     </div>
   );

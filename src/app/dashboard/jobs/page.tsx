@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { Header } from "@/components/layout/Header";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -30,7 +30,7 @@ import {
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn, formatCurrency, formatDate, getStatusColor } from "@/lib/utils";
-import { mockJobs } from "@/lib/mock-data";
+import { getAllJobs, getAllCategories, updateJobStatus } from "@/lib/services";
 import {
   Search,
   Eye,
@@ -40,27 +40,90 @@ import {
   CheckCircle2,
   XCircle,
   PlayCircle,
-  DollarSign,
   User,
   Calendar,
   Zap,
+  Loader2,
 } from "lucide-react";
+
+interface JobData {
+  id: string;
+  title: string;
+  description?: string;
+  status: string;
+  budget_min?: number;
+  budget_max?: number;
+  city?: string;
+  area?: string;
+  address?: string;
+  is_urgent?: boolean;
+  scheduled_date?: string;
+  scheduled_time?: string;
+  completed_at?: string;
+  created_at: string;
+  commission?: number;
+  final_price?: number;
+  category?: { id: string; name: string; icon: string } | null;
+  employer?: { id: string; full_name: string; phone?: string; company_name?: string; city?: string } | null;
+  worker?: { id: string; full_name: string; phone?: string; city?: string; rating?: number } | null;
+}
+
+function SkeletonRow() {
+  return (
+    <TableRow>
+      <TableCell>
+        <div className="flex items-start gap-2">
+          <div className="h-4 w-32 bg-gray-200 rounded animate-pulse" />
+          <div className="h-3 w-24 bg-gray-200 rounded animate-pulse" />
+        </div>
+      </TableCell>
+      <TableCell className="hidden md:table-cell">
+        <div className="h-4 w-20 bg-gray-200 rounded animate-pulse" />
+      </TableCell>
+      <TableCell className="hidden lg:table-cell">
+        <div className="h-4 w-16 bg-gray-200 rounded animate-pulse" />
+      </TableCell>
+      <TableCell className="hidden sm:table-cell">
+        <div className="h-4 w-24 bg-gray-200 rounded animate-pulse" />
+      </TableCell>
+      <TableCell>
+        <div className="h-5 w-20 bg-gray-200 rounded animate-pulse" />
+      </TableCell>
+      <TableCell className="text-right">
+        <div className="h-8 w-8 bg-gray-200 rounded animate-pulse ml-auto" />
+      </TableCell>
+    </TableRow>
+  );
+}
 
 function JobsContent() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
-  const [selectedJob, setSelectedJob] = useState<(typeof mockJobs)[0] | null>(null);
+  const [jobs, setJobs] = useState<JobData[]>([]);
+  const [selectedJob, setSelectedJob] = useState<JobData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [actionLoading, setActionLoading] = useState(false);
 
-  const filteredJobs = useMemo(() => {
-    return mockJobs.filter((job) => {
-      const matchesSearch =
-        job.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        job.city.toLowerCase().includes(searchQuery.toLowerCase());
-      const matchesStatus = statusFilter === "all" || job.status === statusFilter;
-      return matchesSearch && matchesStatus;
-    });
-  }, [searchQuery, statusFilter]);
+  const fetchJobs = useCallback(async () => {
+    setLoading(true);
+    try {
+      const filters: any = {};
+      if (statusFilter && statusFilter !== "all") filters.status = statusFilter;
+      if (searchQuery) filters.search = searchQuery;
+      const data = await getAllJobs(filters);
+      setJobs(data as JobData[]);
+    } catch (err) {
+      console.error("Failed to fetch jobs:", err);
+    }
+    setLoading(false);
+  }, [statusFilter, searchQuery]);
+
+  useEffect(() => {
+    fetchJobs();
+  }, [fetchJobs]);
+
+  const filteredJobs = jobs;
 
   const statusIcon = (status: string) => {
     switch (status) {
@@ -73,14 +136,28 @@ function JobsContent() {
     }
   };
 
-  const statusCounts = useMemo(() => ({
-    all: mockJobs.length,
-    open: mockJobs.filter((j) => j.status === "open").length,
-    in_progress: mockJobs.filter((j) => j.status === "in_progress").length,
-    completed: mockJobs.filter((j) => j.status === "completed").length,
-    cancelled: mockJobs.filter((j) => j.status === "cancelled").length,
-    disputed: mockJobs.filter((j) => j.status === "disputed").length,
-  }), []);
+  const statusCounts = {
+    all: jobs.length,
+    open: jobs.filter((j) => j.status === "open").length,
+    in_progress: jobs.filter((j) => j.status === "in_progress").length,
+    completed: jobs.filter((j) => j.status === "completed").length,
+    cancelled: jobs.filter((j) => j.status === "cancelled").length,
+    disputed: jobs.filter((j) => j.status === "disputed").length,
+  };
+
+  const handleUpdateJobStatus = async (jobId: string, status: string) => {
+    setActionLoading(true);
+    try {
+      await updateJobStatus(jobId, status);
+      fetchJobs();
+      if (selectedJob?.id === jobId) {
+        setSelectedJob({ ...selectedJob, status });
+      }
+    } catch (err) {
+      console.error("Failed to update job status:", err);
+    }
+    setActionLoading(false);
+  };
 
   return (
     <>
@@ -157,61 +234,80 @@ function JobsContent() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredJobs.map((job) => (
-                  <TableRow key={job.id}>
-                    <TableCell>
-                      <div className="flex items-start gap-2">
-                        {job.is_urgent && <Zap className="h-4 w-4 text-red-500 mt-0.5 shrink-0" />}
-                        <div>
-                          <p className="font-medium text-gray-900 text-sm">{job.title}</p>
-                          <p className="text-xs text-gray-500">
-                            {job.employer?.full_name} • {formatDate(job.created_at)}
-                          </p>
-                        </div>
+                {loading ? (
+                  <>
+                    <SkeletonRow />
+                    <SkeletonRow />
+                    <SkeletonRow />
+                    <SkeletonRow />
+                    <SkeletonRow />
+                  </>
+                ) : filteredJobs.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center py-12">
+                      <div className="text-center">
+                        <p className="text-gray-400 text-sm">No jobs found</p>
+                        <p className="text-gray-300 text-xs mt-1">Try adjusting your filters</p>
                       </div>
-                    </TableCell>
-                    <TableCell className="hidden md:table-cell">
-                      <div className="flex items-center gap-2">
-                        <span>{job.category?.icon}</span>
-                        <span className="text-sm">{job.category?.name}</span>
-                      </div>
-                    </TableCell>
-                    <TableCell className="hidden lg:table-cell">
-                      <div className="flex items-center gap-1">
-                        <MapPin className="h-3.5 w-3.5 text-gray-400" />
-                        <span className="text-sm text-gray-600">{job.city}</span>
-                      </div>
-                    </TableCell>
-                    <TableCell className="hidden sm:table-cell">
-                      <div>
-                        <p className="text-sm font-medium">
-                          {job.final_price
-                            ? formatCurrency(job.final_price)
-                            : `${formatCurrency(job.budget_min)} - ${formatCurrency(job.budget_max)}`}
-                        </p>
-                        {job.commission > 0 && (
-                          <p className="text-xs text-green-600">Comm: {formatCurrency(job.commission)}</p>
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge className={cn("text-xs flex items-center gap-1", getStatusColor(job.status))}>
-                        {statusIcon(job.status)}
-                        {job.status.replace("_", " ")}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setSelectedJob(job)}
-                        className="text-orange-600 hover:text-orange-700 hover:bg-orange-50"
-                      >
-                        <Eye className="h-4 w-4" />
-                      </Button>
                     </TableCell>
                   </TableRow>
-                ))}
+                ) : (
+                  filteredJobs.map((job) => (
+                    <TableRow key={job.id}>
+                      <TableCell>
+                        <div className="flex items-start gap-2">
+                          {job.is_urgent && <Zap className="h-4 w-4 text-red-500 mt-0.5 shrink-0" />}
+                          <div>
+                            <p className="font-medium text-gray-900 text-sm">{job.title}</p>
+                            <p className="text-xs text-gray-500">
+                              {job.employer?.full_name || "Unknown"} • {formatDate(job.created_at)}
+                            </p>
+                          </div>
+                        </div>
+                      </TableCell>
+                      <TableCell className="hidden md:table-cell">
+                        <div className="flex items-center gap-2">
+                          <span>{job.category?.icon}</span>
+                          <span className="text-sm">{job.category?.name}</span>
+                        </div>
+                      </TableCell>
+                      <TableCell className="hidden lg:table-cell">
+                        <div className="flex items-center gap-1">
+                          <MapPin className="h-3.5 w-3.5 text-gray-400" />
+                          <span className="text-sm text-gray-600">{job.city || "N/A"}</span>
+                        </div>
+                      </TableCell>
+                      <TableCell className="hidden sm:table-cell">
+                        <div>
+                          <p className="text-sm font-medium">
+                            {job.final_price
+                              ? formatCurrency(job.final_price)
+                              : `${formatCurrency(job.budget_min || 0)} - ${formatCurrency(job.budget_max || 0)}`}
+                          </p>
+                          {job.commission && job.commission > 0 && (
+                            <p className="text-xs text-green-600">Comm: {formatCurrency(job.commission)}</p>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <Badge className={cn("text-xs flex items-center gap-1", getStatusColor(job.status))}>
+                          {statusIcon(job.status)}
+                          {job.status.replace("_", " ")}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setSelectedJob(job)}
+                          className="text-orange-600 hover:text-orange-700 hover:bg-orange-50"
+                        >
+                          <Eye className="h-4 w-4" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
               </TableBody>
             </Table>
           </CardContent>
@@ -230,7 +326,7 @@ function JobsContent() {
                     )}
                   </DialogTitle>
                   <DialogDescription>
-                    {selectedJob.category?.icon} {selectedJob.category?.name} • Posted {formatDate(selectedJob.created_at)}
+                    {selectedJob.category?.icon} {selectedJob.category?.name || "N/A"} • Posted {formatDate(selectedJob.created_at)}
                   </DialogDescription>
                 </DialogHeader>
 
@@ -244,14 +340,14 @@ function JobsContent() {
                   <TabsContent value="details" className="space-y-4 mt-4">
                     <div>
                       <p className="text-xs text-gray-500 mb-1">Description</p>
-                      <p className="text-sm text-gray-700">{selectedJob.description}</p>
+                      <p className="text-sm text-gray-700">{selectedJob.description || "No description"}</p>
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-1">
                         <p className="text-xs text-gray-500">Location</p>
                         <div className="flex items-center gap-2">
                           <MapPin className="h-3.5 w-3.5 text-gray-400" />
-                          <p className="text-sm font-medium">{selectedJob.address}</p>
+                          <p className="text-sm font-medium">{selectedJob.address || selectedJob.city || "N/A"}</p>
                         </div>
                       </div>
                       <div className="space-y-1">
@@ -286,8 +382,8 @@ function JobsContent() {
                         <p className="text-xs text-gray-500 mb-2 flex items-center gap-1">
                           <User className="h-3 w-3" /> Employer
                         </p>
-                        <p className="font-medium text-sm">{selectedJob.employer?.full_name}</p>
-                        <p className="text-xs text-gray-500">{selectedJob.employer?.phone} • {selectedJob.employer?.city}</p>
+                        <p className="font-medium text-sm">{selectedJob.employer?.full_name || "Unknown"}</p>
+                        <p className="text-xs text-gray-500">{selectedJob.employer?.phone || "N/A"} • {selectedJob.employer?.city || "N/A"}</p>
                       </div>
                       {selectedJob.worker ? (
                         <div className="rounded-lg border p-4">
@@ -295,8 +391,7 @@ function JobsContent() {
                             <User className="h-3 w-3" /> Assigned Worker
                           </p>
                           <p className="font-medium text-sm">{selectedJob.worker.full_name}</p>
-                          <p className="text-xs text-gray-500">{selectedJob.worker.phone} • {selectedJob.worker.city}</p>
-                          <p className="text-xs text-gray-500">Rating: {selectedJob.worker.rating} ⭐</p>
+                          <p className="text-xs text-gray-500">{selectedJob.worker.city || "N/A"}</p>
                         </div>
                       ) : (
                         <div className="rounded-lg border border-dashed p-4 text-center">
@@ -312,7 +407,7 @@ function JobsContent() {
                         <div className="flex items-center justify-between">
                           <span className="text-sm text-gray-500">Budget Range</span>
                           <span className="text-sm font-medium">
-                            {formatCurrency(selectedJob.budget_min)} - {formatCurrency(selectedJob.budget_max)}
+                            {formatCurrency(selectedJob.budget_min || 0)} - {formatCurrency(selectedJob.budget_max || 0)}
                           </span>
                         </div>
                         <div className="flex items-center justify-between">
@@ -324,14 +419,14 @@ function JobsContent() {
                         <div className="flex items-center justify-between">
                           <span className="text-sm text-gray-500">Platform Commission (15%)</span>
                           <span className="text-sm font-medium text-orange-600">
-                            {formatCurrency(selectedJob.commission)}
+                            {formatCurrency(selectedJob.commission || 0)}
                           </span>
                         </div>
                         <div className="flex items-center justify-between">
                           <span className="text-sm text-gray-500">Worker Payout</span>
                           <span className="text-sm font-medium text-green-600">
                             {selectedJob.final_price
-                              ? formatCurrency(selectedJob.final_price - selectedJob.commission)
+                              ? formatCurrency(selectedJob.final_price - (selectedJob.commission || 0))
                               : "—"}
                           </span>
                         </div>
@@ -341,12 +436,20 @@ function JobsContent() {
                       <div className="mt-4 space-y-3">
                         <h4 className="text-sm font-semibold text-gray-900">Resolve Dispute</h4>
                         <div className="grid grid-cols-2 gap-3">
-                          <Button className="bg-green-600 hover:bg-green-700 text-white">
-                            <CheckCircle2 className="h-4 w-4 mr-2" />
-                            Approve & Pay Worker
+                          <Button
+                            className="bg-green-600 hover:bg-green-700 text-white"
+                            disabled={actionLoading}
+                            onClick={() => handleUpdateJobStatus(selectedJob.id, "completed")}
+                          >
+                            {actionLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <CheckCircle2 className="h-4 w-4 mr-2" />}
+                            Approve & Pay
                           </Button>
-                          <Button variant="destructive">
-                            <XCircle className="h-4 w-4 mr-2" />
+                          <Button
+                            variant="destructive"
+                            disabled={actionLoading}
+                            onClick={() => handleUpdateJobStatus(selectedJob.id, "cancelled")}
+                          >
+                            {actionLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <XCircle className="h-4 w-4 mr-2" />}
                             Refund Employer
                           </Button>
                         </div>

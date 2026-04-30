@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { Header } from "@/components/layout/Header";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -13,7 +13,6 @@ import {
   DialogHeader,
   DialogTitle,
   DialogDescription,
-  DialogFooter,
 } from "@/components/ui/dialog";
 import {
   Select,
@@ -32,44 +31,95 @@ import {
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn, formatCurrency, formatDate, getInitials, getStatusColor } from "@/lib/utils";
-import { mockTransactions, mockWithdrawals } from "@/lib/mock-data";
+import { getFinancialData, approveWithdrawal, rejectWithdrawal } from "@/lib/services";
 import {
   DollarSign,
-  TrendingUp,
-  ArrowUpRight,
-  ArrowDownRight,
+  CreditCard,
   Clock,
-  CheckCircle2,
+  CheckCircle,
   XCircle,
   Search,
   Eye,
   Wallet,
-  CreditCard,
   RotateCcw,
-  UserCheck,
-  CheckCircle,
+  ArrowUpRight,
+  ArrowDownRight,
+  Loader2,
 } from "lucide-react";
+
+interface TransactionData {
+  id: string;
+  type: string;
+  amount: number;
+  status: string;
+  description: string;
+  job_id?: string;
+  worker_id?: string;
+  employer_id?: string;
+  created_at: string;
+}
+
+interface WithdrawalData {
+  id: string;
+  worker_id: string;
+  amount: number;
+  method?: string;
+  account_details?: string;
+  status: string;
+  created_at: string;
+  processed_at?: string;
+  worker?: { id: string; full_name: string; phone?: string } | null;
+}
+
+function SkeletonRow({ cols }: { cols: number }) {
+  return (
+    <TableRow>
+      {Array.from({ length: cols }).map((_, i) => (
+        <TableCell key={i}>
+          <div className="h-4 w-full max-w-[120px] bg-gray-200 rounded animate-pulse" />
+        </TableCell>
+      ))}
+    </TableRow>
+  );
+}
 
 function FinancialsContent() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [typeFilter, setTypeFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
-  const [selectedWithdrawal, setSelectedWithdrawal] = useState<(typeof mockWithdrawals)[0] | null>(null);
-  const [withdrawals, setWithdrawals] = useState(mockWithdrawals);
+  const [selectedWithdrawal, setSelectedWithdrawal] = useState<WithdrawalData | null>(null);
+  const [transactions, setTransactions] = useState<TransactionData[]>([]);
+  const [withdrawals, setWithdrawals] = useState<WithdrawalData[]>([]);
+  const [totalEarnings, setTotalEarnings] = useState(0);
+  const [totalPayouts, setTotalPayouts] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [actionLoading, setActionLoading] = useState(false);
 
-  const totalRevenue = mockTransactions
-    .filter((t) => t.type === "commission" && t.status === "completed")
-    .reduce((sum, t) => sum + t.amount, 0);
-  const pendingPayouts = mockTransactions
-    .filter((t) => t.type === "payout" && t.status === "pending")
-    .reduce((sum, t) => sum + t.amount, 0);
+  const fetchFinancialData = useCallback(async () => {
+    setLoading(true);
+    try {
+      const data = await getFinancialData();
+      setTransactions((data.transactions || []) as TransactionData[]);
+      setWithdrawals((data.withdrawals || []) as WithdrawalData[]);
+      setTotalEarnings(data.totalEarnings || 0);
+      setTotalPayouts(data.totalPayouts || 0);
+    } catch (err) {
+      console.error("Failed to fetch financial data:", err);
+    }
+    setLoading(false);
+  }, []);
+
+  useEffect(() => {
+    fetchFinancialData();
+  }, [fetchFinancialData]);
+
   const pendingWithdrawals = withdrawals
     .filter((w) => w.status === "pending")
-    .reduce((sum, w) => sum + w.amount, 0);
+    .reduce((sum, w) => sum + Number(w.amount), 0);
 
-  const filteredTransactions = mockTransactions.filter((t) => {
-    const matchesSearch = t.description.toLowerCase().includes(searchQuery.toLowerCase());
+  const filteredTransactions = transactions.filter((t) => {
+    const matchesSearch = (t.description || "").toLowerCase().includes(searchQuery.toLowerCase());
     const matchesType = typeFilter === "all" || t.type === typeFilter;
     const matchesStatus = statusFilter === "all" || t.status === statusFilter;
     return matchesSearch && matchesType && matchesStatus;
@@ -85,15 +135,26 @@ function FinancialsContent() {
     }
   };
 
-  const handleWithdrawalAction = (id: string, action: "approved" | "rejected") => {
-    setWithdrawals(
-      withdrawals.map((w) =>
-        w.id === id
-          ? { ...w, status: action, processed_at: new Date().toISOString() }
-          : w
-      )
-    );
-    setSelectedWithdrawal(null);
+  const handleWithdrawalAction = async (id: string, action: "approved" | "rejected") => {
+    setActionLoading(true);
+    try {
+      if (action === "approved") {
+        await approveWithdrawal(id);
+      } else {
+        await rejectWithdrawal(id);
+      }
+      setWithdrawals(
+        withdrawals.map((w) =>
+          w.id === id
+            ? { ...w, status: action, processed_at: new Date().toISOString() }
+            : w
+        )
+      );
+      setSelectedWithdrawal(null);
+    } catch (err) {
+      console.error("Failed to process withdrawal:", err);
+    }
+    setActionLoading(false);
   };
 
   return (
@@ -111,7 +172,9 @@ function FinancialsContent() {
                 </div>
                 <div>
                   <p className="text-sm text-gray-500">Total Revenue</p>
-                  <p className="text-2xl font-bold text-gray-900">{formatCurrency(totalRevenue)}</p>
+                  <p className="text-2xl font-bold text-gray-900">
+                    {loading ? "—" : formatCurrency(totalEarnings)}
+                  </p>
                 </div>
               </div>
             </CardContent>
@@ -124,7 +187,9 @@ function FinancialsContent() {
                 </div>
                 <div>
                   <p className="text-sm text-gray-500">Commission Collected</p>
-                  <p className="text-2xl font-bold text-gray-900">{formatCurrency(totalRevenue)}</p>
+                  <p className="text-2xl font-bold text-gray-900">
+                    {loading ? "—" : formatCurrency(totalEarnings)}
+                  </p>
                 </div>
               </div>
             </CardContent>
@@ -137,7 +202,9 @@ function FinancialsContent() {
                 </div>
                 <div>
                   <p className="text-sm text-gray-500">Pending Payouts</p>
-                  <p className="text-2xl font-bold text-gray-900">{formatCurrency(pendingPayouts)}</p>
+                  <p className="text-2xl font-bold text-gray-900">
+                    {loading ? "—" : formatCurrency(totalPayouts)}
+                  </p>
                 </div>
               </div>
             </CardContent>
@@ -150,7 +217,9 @@ function FinancialsContent() {
                 </div>
                 <div>
                   <p className="text-sm text-gray-500">Pending Withdrawals</p>
-                  <p className="text-2xl font-bold text-gray-900">{formatCurrency(pendingWithdrawals)}</p>
+                  <p className="text-2xl font-bold text-gray-900">
+                    {loading ? "—" : formatCurrency(pendingWithdrawals)}
+                  </p>
                 </div>
               </div>
             </CardContent>
@@ -164,7 +233,9 @@ function FinancialsContent() {
             <TabsTrigger value="withdrawals">
               Withdrawal Requests
               {withdrawals.filter((w) => w.status === "pending").length > 0 && (
-                <Badge className="ml-2 bg-orange-500 text-white text-xs">{withdrawals.filter((w) => w.status === "pending").length}</Badge>
+                <Badge className="ml-2 bg-orange-500 text-white text-xs">
+                  {withdrawals.filter((w) => w.status === "pending").length}
+                </Badge>
               )}
             </TabsTrigger>
           </TabsList>
@@ -224,36 +295,49 @@ function FinancialsContent() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredTransactions.map((txn) => (
-                      <TableRow key={txn.id}>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            {txnTypeIcon(txn.type)}
-                            <span className="text-sm font-medium capitalize">{txn.type}</span>
+                    {loading ? (
+                      Array.from({ length: 6 }).map((_, i) => <SkeletonRow key={i} cols={5} />)
+                    ) : filteredTransactions.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={5} className="text-center py-12">
+                          <div className="text-center">
+                            <p className="text-gray-400 text-sm">No transactions found</p>
+                            <p className="text-gray-300 text-xs mt-1">Try adjusting your filters</p>
                           </div>
                         </TableCell>
-                        <TableCell>
-                          <p className="text-sm text-gray-700 max-w-[300px] truncate">{txn.description}</p>
-                        </TableCell>
-                        <TableCell className="hidden md:table-cell">
-                          <span className="text-sm text-gray-500">{formatDate(txn.created_at)}</span>
-                        </TableCell>
-                        <TableCell>
-                          <span className={cn(
-                            "text-sm font-semibold",
-                            txn.type === "commission" || txn.type === "withdrawal" ? "text-green-600" :
-                            txn.type === "refund" ? "text-red-600" : "text-orange-600"
-                          )}>
-                            {txn.type === "refund" ? "-" : "+"}{formatCurrency(txn.amount)}
-                          </span>
-                        </TableCell>
-                        <TableCell>
-                          <Badge className={cn("text-xs", getStatusColor(txn.status))}>
-                            {txn.status}
-                          </Badge>
-                        </TableCell>
                       </TableRow>
-                    ))}
+                    ) : (
+                      filteredTransactions.map((txn) => (
+                        <TableRow key={txn.id}>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              {txnTypeIcon(txn.type)}
+                              <span className="text-sm font-medium capitalize">{txn.type}</span>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <p className="text-sm text-gray-700 max-w-[300px] truncate">{txn.description}</p>
+                          </TableCell>
+                          <TableCell className="hidden md:table-cell">
+                            <span className="text-sm text-gray-500">{formatDate(txn.created_at)}</span>
+                          </TableCell>
+                          <TableCell>
+                            <span className={cn(
+                              "text-sm font-semibold",
+                              txn.type === "commission" || txn.type === "withdrawal" ? "text-green-600" :
+                              txn.type === "refund" ? "text-red-600" : "text-orange-600"
+                            )}>
+                              {txn.type === "refund" ? "-" : "+"}{formatCurrency(Number(txn.amount))}
+                            </span>
+                          </TableCell>
+                          <TableCell>
+                            <Badge className={cn("text-xs", getStatusColor(txn.status))}>
+                              {txn.status}
+                            </Badge>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
                   </TableBody>
                 </Table>
               </CardContent>
@@ -276,63 +360,78 @@ function FinancialsContent() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {withdrawals.map((wd) => (
-                      <TableRow key={wd.id}>
-                        <TableCell>
-                          <div className="flex items-center gap-3">
-                            <Avatar className="h-8 w-8">
-                              <AvatarFallback className="bg-orange-100 text-orange-700 text-xs font-semibold">
-                                {wd.worker ? getInitials(wd.worker.full_name) : "??"}
-                              </AvatarFallback>
-                            </Avatar>
-                            <span className="text-sm font-medium">{wd.worker?.full_name}</span>
+                    {loading ? (
+                      Array.from({ length: 4 }).map((_, i) => <SkeletonRow key={i} cols={7} />)
+                    ) : withdrawals.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={7} className="text-center py-12">
+                          <div className="text-center">
+                            <p className="text-gray-400 text-sm">No withdrawal requests found</p>
+                            <p className="text-gray-300 text-xs mt-1">Withdrawal requests from workers will appear here</p>
                           </div>
                         </TableCell>
-                        <TableCell>
-                          <span className="text-sm font-semibold">{formatCurrency(wd.amount)}</span>
-                        </TableCell>
-                        <TableCell className="hidden md:table-cell">
-                          <Badge variant="outline" className="text-xs">{wd.method}</Badge>
-                        </TableCell>
-                        <TableCell className="hidden lg:table-cell">
-                          <span className="text-xs text-gray-500 max-w-[150px] truncate block">{wd.account_details}</span>
-                        </TableCell>
-                        <TableCell>
-                          <Badge className={cn("text-xs", getStatusColor(wd.status))}>
-                            {wd.status}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="hidden sm:table-cell">
-                          <span className="text-xs text-gray-500">{formatDate(wd.created_at)}</span>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {wd.status === "pending" ? (
-                            <div className="flex items-center justify-end gap-1">
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                onClick={() => handleWithdrawalAction(wd.id, "approved")}
-                                className="text-green-600 hover:text-green-700 hover:bg-green-50"
-                              >
-                                <CheckCircle className="h-4 w-4" />
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                onClick={() => handleWithdrawalAction(wd.id, "rejected")}
-                                className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                              >
-                                <XCircle className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          ) : (
-                            <Button variant="ghost" size="sm" onClick={() => setSelectedWithdrawal(wd)}>
-                              <Eye className="h-4 w-4" />
-                            </Button>
-                          )}
-                        </TableCell>
                       </TableRow>
-                    ))}
+                    ) : (
+                      withdrawals.map((wd) => (
+                        <TableRow key={wd.id}>
+                          <TableCell>
+                            <div className="flex items-center gap-3">
+                              <Avatar className="h-8 w-8">
+                                <AvatarFallback className="bg-orange-100 text-orange-700 text-xs font-semibold">
+                                  {wd.worker ? getInitials(wd.worker.full_name) : "??"}
+                                </AvatarFallback>
+                              </Avatar>
+                              <span className="text-sm font-medium">{wd.worker?.full_name || "Unknown"}</span>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <span className="text-sm font-semibold">{formatCurrency(Number(wd.amount))}</span>
+                          </TableCell>
+                          <TableCell className="hidden md:table-cell">
+                            <Badge variant="outline" className="text-xs">{wd.method || "N/A"}</Badge>
+                          </TableCell>
+                          <TableCell className="hidden lg:table-cell">
+                            <span className="text-xs text-gray-500 max-w-[150px] truncate block">{wd.account_details || "N/A"}</span>
+                          </TableCell>
+                          <TableCell>
+                            <Badge className={cn("text-xs", getStatusColor(wd.status))}>
+                              {wd.status}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="hidden sm:table-cell">
+                            <span className="text-xs text-gray-500">{formatDate(wd.created_at)}</span>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {wd.status === "pending" ? (
+                              <div className="flex items-center justify-end gap-1">
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => handleWithdrawalAction(wd.id, "approved")}
+                                  className="text-green-600 hover:text-green-700 hover:bg-green-50"
+                                  disabled={actionLoading}
+                                >
+                                  {actionLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle className="h-4 w-4" />}
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => handleWithdrawalAction(wd.id, "rejected")}
+                                  className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                                  disabled={actionLoading}
+                                >
+                                  <XCircle className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            ) : (
+                              <Button variant="ghost" size="sm" onClick={() => setSelectedWithdrawal(wd)}>
+                                <Eye className="h-4 w-4" />
+                              </Button>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
                   </TableBody>
                 </Table>
               </CardContent>
@@ -348,22 +447,22 @@ function FinancialsContent() {
                 <DialogHeader>
                   <DialogTitle>Withdrawal Details</DialogTitle>
                   <DialogDescription>
-                    Request from {selectedWithdrawal.worker?.full_name}
+                    Request from {selectedWithdrawal.worker?.full_name || "Unknown"}
                   </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4 mt-4">
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-1">
                       <p className="text-xs text-gray-500">Amount</p>
-                      <p className="text-lg font-bold">{formatCurrency(selectedWithdrawal.amount)}</p>
+                      <p className="text-lg font-bold">{formatCurrency(Number(selectedWithdrawal.amount))}</p>
                     </div>
                     <div className="space-y-1">
                       <p className="text-xs text-gray-500">Method</p>
-                      <p className="text-sm font-medium">{selectedWithdrawal.method}</p>
+                      <p className="text-sm font-medium">{selectedWithdrawal.method || "N/A"}</p>
                     </div>
                     <div className="space-y-1">
                       <p className="text-xs text-gray-500">Account Details</p>
-                      <p className="text-sm font-medium">{selectedWithdrawal.account_details}</p>
+                      <p className="text-sm font-medium">{selectedWithdrawal.account_details || "N/A"}</p>
                     </div>
                     <div className="space-y-1">
                       <p className="text-xs text-gray-500">Status</p>
